@@ -1,0 +1,751 @@
+// 5_advanced_simulation.cpp : This file contains the 'main' function. Program execution begins and ends there.
+//
+
+//
+#include <iostream>
+#include <vector>
+#include <ctime>
+#include <cstdlib>
+#include <random>
+#include <map>
+#include <cctype>
+#include <algorithm>
+
+
+
+
+class Character;// Forward declaration of the Character class
+
+class Map {
+public:
+    Map(int rows, int cols) : rows(rows), cols(cols) {
+        grid.resize(cols, std::vector<char>(rows, ' '));
+    }
+
+    std::vector<Character*> characters;
+
+    char& operator()(int row, int col) { return grid[row][col]; }
+    const char& operator()(int row, int col) const { return grid[row][col]; 
+    
+       
+    
+    }
+
+    int get_rows() const { 
+        try {
+            return grid.at(rows).at(cols);
+        }
+        catch (const std::out_of_range& e) {
+            std::cerr << "Caught an out-of-range exception: " << e.what() << std::endl;
+            return ' ';  // Return a default value
+        }
+        
+        
+        return rows; }
+    int get_cols() const { 
+        try {
+            return grid.at(rows).at(cols);
+        }
+        catch (const std::out_of_range& e) {
+            std::cerr << "Caught an out-of-range exception: " << e.what() << std::endl;
+            return ' ';  // Return a default value
+        }
+        
+        return cols; }
+
+    /*
+     void update_characters() {
+         for (Character *character : get_characters()) {
+             character->update_health();
+         }
+     }
+ */
+
+
+    void add_character(Character* character) {
+        characters.push_back(character);
+    }
+
+    const std::vector<Character*>& get_characters() const {
+        return characters;
+    }
+
+
+    void display() {
+        std::cout << std::string(rows * 4, '-') << "\n";
+        for (const auto& row : grid) {
+            std::cout << "|";
+            for (char cell : row) {
+                std::cout << cell << "  |";
+            }
+            std::cout << "\n";
+            std::cout << std::string(rows * 4, '-');
+            std::cout << std::endl;
+        }
+       
+    }
+
+
+
+
+
+    void place_blockers(int num_blockers) {
+        srand(time(NULL));
+        while (num_blockers > 0) {
+            int x = rand() % rows;
+            int y = rand() % cols;
+            if (grid[y][x] == ' ') {
+                grid[y][x] = '#';
+                --num_blockers;
+            }
+        }
+    }
+
+    bool is_valid_move(int x, int y) {
+        if (x < 0 || y < 0 || x >= rows || y >= cols) {
+            return false;
+        }
+        if (grid[y][x] == '#' || isalpha(grid[y][x])) {
+            return false;
+        }
+        return true;
+    }
+
+
+    void move_character(int old_x, int old_y, int new_x, int new_y) {
+        grid[new_y][new_x] = grid[old_y][old_x];
+        grid[old_y][old_x] = ' ';
+    }
+
+    void place_character(char symbol, int x, int y) {
+        grid[y][x] = symbol;
+    }
+
+    void display_count() {
+        // Initialize a map to hold the counts of each character type
+        std::map<char, int> character_count;
+
+        // Iterate through the grid and count each character type
+        for (int row = 0; row < rows; ++row) {
+            for (int col = 0; col < cols; ++col) {
+                char cell = grid[row][col];
+                if (isalpha(cell)) {
+                    character_count[cell]++;
+                }
+            }
+        }
+
+        // Display the counts
+        for (const auto& entry : character_count) {
+            std::cout << "Count of " << entry.first << ": " << entry.second << std::endl;
+        }
+    }
+
+    
+
+    std::vector<std::vector<char>> grid;
+    int rows;
+    int cols;
+
+private:
+
+    //std::vector<std::string> grid;
+
+
+};
+
+class Character {
+public:
+    Character(char symbol, int k, int health, int attack_strength, double fertility_rate, Map& map)
+        : symbol(symbol), k(k), health(health), attack_strength(attack_strength), fertility_rate(fertility_rate), map(map) {
+        place_on_map();
+    }
+
+
+    virtual ~Character() {}
+
+    // Getters
+    char get_symbol() const { return symbol; }
+    int get_x() const { return x; }
+    int get_y() const { return y; }
+    int get_k() const { return k; }
+
+    // Setters
+    void set_symbol(char symbol) { this->symbol = symbol; }
+    void set_x(int x) { this->x = x; }
+    void set_y(int y) { this->y = y; }
+    void set_k(int k) { this->k = k; }
+
+
+
+    void place_on_map() {
+        int x, y;
+        do {
+            x = rand() % map.rows;
+            y = rand() % map.cols;
+        } while (!map.is_valid_move(x, y));
+        map.place_character(symbol, x, y);
+        this->x = x;
+        this->y = y;
+    }
+
+    int get_health() const { return health; }
+    void set_health(int health) { this->health = health; }
+
+    int get_attack_strength() const { return attack_strength; }
+    void set_attack_strength(int attack_strength) { this->attack_strength = attack_strength; }
+
+    double get_fertility_rate() const { return fertility_rate; }
+    void set_fertility_rate(double fertility_rate) { this->fertility_rate = fertility_rate; }
+
+
+    //change fromupper tolower character if health is below 24
+    void update_symbol() {
+        if (symbol == 'T') {
+            if (health < 33) symbol = '\'';
+            else if (health < 66) symbol = 't';
+            else symbol = 'T';
+            map(row, col) = symbol;
+        }
+        else {
+            if (health < 25) symbol = std::tolower(symbol);
+            else symbol = std::toupper(symbol);
+            map(row, col) = symbol;
+        }
+    }
+
+  virtual void update_health(std::vector<Character*>& characters) {
+        // Decrease health by 1 each step, unless the character feeds
+        health -= 1;
+
+        // Check if health is below 0 and set it to 0 if it is
+        if (health < 0) {
+            health = 0;
+        }
+        set_health(health);
+    }
+
+    void update() {
+        if (symbol != 'T') {
+            health -= 1;
+            if (health <= 0) {
+                health = 0;
+            }
+        }set_health(health);
+        update_symbol();
+        //reproduce();
+    }
+
+    int steps_since_last_reproduction;
+
+    void update_reproduction(std::vector<Character*>& characters) {
+        steps_since_last_reproduction++;
+
+        // Calculate the reproduction frequency as 1/fertility_rate
+        int reproduction_frequency = static_cast<int>(round(1.0 / fertility_rate));
+
+        if (steps_since_last_reproduction >= reproduction_frequency) {
+            reproduce(characters);
+            steps_since_last_reproduction = 0;  // Reset the counter
+        }
+    }
+
+    //reproduce checks if character not vegetation  then clones the character and placesit on the map
+    virtual void reproduce(std::vector<Character*>& characters) {
+        //int round = fertility_rate * 1000;
+        if (symbol != 'T') {
+            // Create a new character instance based on the current character;
+            Character* character = clone();
+            character->place_on_map();
+
+        }
+    }
+
+    //interaction between the current character and another character.
+    virtual void interact(Character* other) {
+        int interaction_points = 1; // Default value, can be modified
+
+        if (symbol == 'C' && other->get_symbol() == 'H') { // if interaction between C and H, C consumes H
+            health += interaction_points;
+            other->set_health(other->get_health() - interaction_points);
+        }
+        else if (symbol == 'O' && (other->get_symbol() == 'T' || other->get_symbol() == 'H')) { //  O consumes  T and H
+            health += interaction_points;
+            other->set_health(other->get_health() - interaction_points);
+        }
+        else if (symbol == 'H' && other->get_symbol() == 'T') { // H consumes T
+            health += interaction_points;
+            other->set_health(other->get_health() - interaction_points);
+        }
+    }
+
+    //Calculate movement direction according to probability of movement
+    int calculate_direction() {
+        if (get_k() == 0) {
+            return rand() % 4;
+        }
+        else if (get_k() > 4) {
+            if (rand() % (4 + get_k()) < 4) {
+                return rand() % 4;
+            }
+            else {
+                return -1;
+            }
+        }
+        return get_k() - 1;
+    }
+
+    // Check if the character is dead (health <= 0)
+    bool is_dead() const {
+        return health <= 0;
+    }
+
+    //Move the character according to the calculated direction and handle interactions with other characters on the map.
+ 
+    
+    
+    virtual void move() {
+        int new_x = x, new_y = y;
+        int move_choice = rand() % (4 + get_k()); // determine howto move
+        int dx[] = { -1, 0, 1, 0 }; //arrayof movements on the x direction
+        int dy[] = { 0, 1, 0, -1 }; // array of movements in the y direction
+
+        int direction = calculate_direction();
+        if (move_choice < 4) {
+            int dx[4] = { 1, 0, -1, 0 };
+            int dy[4] = { 0, 1, 0, -1 };
+            new_x += dx[move_choice];
+            new_y += dy[move_choice];
+        }
+
+        if (map.is_valid_move(new_x, new_y)) {
+            char other_symbol = map.grid[new_y][new_x];
+           map.move_character(x, y, new_x, new_y);
+            x = new_x;
+            y = new_y;
+        }
+
+        int new_row = row + dx[direction]; //change in direction x
+        int new_col = col + dy[direction]; //change in direction y
+
+        
+       //check if cell contains blocker # if so then no interaction else with other characters there is an interaction
+        if (new_row >= 0 && new_row < map.get_rows() && new_col >= 0 && new_col < map.get_cols() && map(new_row, new_col) != '#') {
+            bool interaction_occurred = false;
+            for (Character* other_character : map.get_characters()) {
+                if (other_character->map.get_rows() == new_row && other_character->map.get_cols() == new_col) {
+                    interact(other_character);
+                    interaction_occurred = true;
+                    break;
+                }
+            }
+            //If no interaction occured 
+            if (!interaction_occurred) {
+                map(row, col) = '.';
+                row = new_row;
+                col = new_col;
+                map(row, col) = get_symbol();
+
+            }
+        }
+    }
+
+    void increase_health(int amount) {
+        health += amount;
+        if (health > get_health()) {
+            health = get_health();
+        }
+    }
+
+    void decrease_health(int amount) {
+        health -= amount;
+        if (health < 0) {
+            health = 0;
+        }
+    }
+
+
+    virtual Character* clone() const = 0;
+
+
+
+    char symbol;
+    int x, y, k, health, attack_strength;
+    double fertility_rate;
+    Map& map;
+    int row, col;
+
+};
+// not used
+static void move_characters(Map& map, std::vector<Character*>& characters) {
+    // Move characters and handle interactions
+    for (Character* character : characters) {
+        if (!character->is_dead()) {
+            character->move();
+            character->interact(character);
+        }
+    }
+
+    // Remove dead characters
+    characters.erase(std::remove_if(characters.begin(), characters.end(),
+        [](Character* character) {
+            if (character->is_dead()) {
+                delete character;
+                return true;
+            }
+            return false;
+        }), characters.end());
+}
+
+
+//displays character positions after each step
+void display_positions(const std::vector<Character*>& characters) {
+    for (const Character* character : characters) {
+        std::cout << character->get_symbol() << ": (" << character->get_x() << ", " << character->get_y() << ")" << std::endl;
+    }
+}
+
+void display_character_counts(const std::vector<Character*>& characters) {
+    std::map<char, int> character_count;
+
+    // Initialize the counts
+    character_count['T'] = 0;
+    character_count['H'] = 0;
+    character_count['C'] = 0;
+    character_count['O'] = 0;
+    //character_count['R'] = 0;
+
+    // Calculate the counts for each character type
+    for (Character* character : characters) {
+        if (!character->is_dead()) {
+            char symbol = character->get_symbol();
+            character_count[symbol]++;
+        }
+    }
+
+    // Display the counts
+    for (const auto& count : character_count) {
+        std::cout << count.first << ": " << count.second << " ";
+    }
+    std::cout << std::endl;
+}
+
+
+//create character classes derived from the character class
+class Vegetation : public Character {
+public:
+    Vegetation(Map& map) : Character('T', 0.0, 100, 0, 0.03, map) {}
+    virtual ~Vegetation() {}
+
+    virtual Character* clone() const override{ return new Vegetation(map); }
+    // In each character class, update move method to use Map's move_character method
+    void move() override{
+        //calculate new_row and new_col ...
+        int new_row = x, new_col = y;
+        map.move_character(row, col, new_row, new_col);
+        row = new_row;
+        col = new_col;
+    }
+};
+
+class Herbivore : public Character {
+public:
+    Herbivore(Map& map) : Character('H', 5, 50, 10, 0.03, map) {}
+    virtual  ~Herbivore() {}
+
+     virtual Character* clone() const override{ return new Herbivore(map); 
+   
+    
+    }
+    
+
+    void interact (Character* other) override{
+        int interaction_points = 1;
+        if (other->get_symbol() == 'T') {
+            // Herbivore consumes Vegetation
+            other->decrease_health(interaction_points);
+            Character::increase_health(interaction_points);
+        }
+    }
+
+    void update_health (std::vector<Character*>& characters) override{
+        // Decrease health by 1 each step, unless the character feeds
+        health -= 1;
+
+        // Check if health is below 0 and set it to 0 if it is
+        if (health < 0) {
+            health = 0;
+        }
+        set_health(health);
+    }
+
+    void move() override {
+        //calculate new_row and new_col ...
+        int new_row = x, new_col = y;
+        map.move_character(row, col, new_row, new_col);
+        row = new_row;
+        col = new_col;
+    }
+
+    void reproduce(std::vector<Character*>& characters) override{
+
+        std::vector<int> dx = { -1, 0, 1, 0 };
+        std::vector<int> dy = { 0, 1, 0, -1 };
+
+        std::random_device rd;
+        std::default_random_engine generator(rd());
+        std::shuffle(dx.begin(), dx.end(), generator);
+
+
+        for (int i = 0; i < 4; ++i) {
+            int new_row = row + dx[i];
+            int new_col = col + dy[i];
+
+            if (map.is_valid_move(new_row, new_col)) {
+                Herbivore* child = new Herbivore(map);
+                child->row = new_row;
+                child->col = new_col;
+                map.add_character(child);
+                health -= 10;
+                break;
+            }
+        }
+
+    }
+
+};
+
+class Carnivore : public Character {
+public:
+    Carnivore(Map& map) : Character('C', 5, 50, 15, 0.3, map) {}
+    virtual ~Carnivore() {}
+
+    virtual Character* clone() const override{ return new Carnivore(map); }
+    
+    
+
+    void interact(Character* other) override{
+        int interaction_points = 1;
+        if (other->get_symbol() == 'H') {
+            // Carnivore consumes Herbivore
+            other->decrease_health(interaction_points);
+            Character::increase_health(interaction_points);
+        }
+    }
+    
+    void update_health(std::vector<Character*>& characters) override{
+        // Decrease health by 1 each step, unless the Goat feeds
+        health -= 1;
+
+        // Check if health is below 0 and set it to 0 if it is
+        if (health < 0) {
+            health = 0;
+        }
+    }
+    void move()  override {
+        //calculate new_row and new_col ...
+        int new_row = x, new_col = y;
+        map.move_character(row, col, new_row, new_col);
+        row = new_row;
+        col = new_col;
+    }
+
+    void reproduce(std::vector<Character*>& characters) override{
+
+        std::vector<int> dx = { -1, 0, 1, 0 };
+        std::vector<int> dy = { 0, 1, 0, -1 };
+
+        std::random_device rd;
+        std::default_random_engine generator(rd());
+        std::shuffle(dx.begin(), dx.end(), generator);
+
+
+        for (int i = 0; i < 4; ++i) {
+            int new_row = row + dx[i];
+            int new_col = col + dy[i];
+
+            if (map.is_valid_move(new_row, new_col)) {
+                Carnivore* child = new Carnivore(map);
+                child->row = new_row;
+                child->col = new_col;
+                map.add_character(child);
+                health -= 10;
+                break;
+            }
+        }
+
+    }
+};
+
+class Omnivore : public Character {
+public:
+    Omnivore(Map& map) : Character('O', 8, 50, 12, 0.03, map) {}
+    virtual ~Omnivore() {}
+
+    virtual Character* clone() const override{ return new Omnivore(map); }
+
+    
+
+    void interact(Character* other) override{
+        int interaction_points = 1;
+        if (other->get_symbol() == 'H' || other->get_symbol() == 'T') {
+            // Omnivore consumes Herbivore and Vegetation
+            other->decrease_health(interaction_points);
+            Character::increase_health(interaction_points);
+        }
+    }
+
+    void update_health(std::vector<Character*>& characters) override{
+        // Decrease health by 1 each step, unless the Goat feeds
+        health -= 1;
+
+        // Check if health is below 0 and set it to 0 if it is
+        if (health < 0) {
+            health = 0;
+        }
+    }
+
+    void reproduce(std::vector<Character*>& characters) override{
+
+        std::vector<int> dx = { -1, 0, 1, 0 };
+        std::vector<int> dy = { 0, 1, 0, -1 };
+
+        std::random_device rd;
+        std::default_random_engine generator(rd());
+        std::shuffle(dx.begin(), dx.end(), generator);
+
+
+        for (int i = 0; i < 4; ++i) {
+            int new_row = row + dx[i];
+            int new_col = col + dy[i];
+
+            if (map.is_valid_move(new_row, new_col)) {
+                Omnivore* child = new Omnivore(map);
+                child->row = new_row;
+                child->col = new_col;
+                map.add_character(child);
+                health -= 10;
+                break;
+            }
+        }
+
+    }
+};
+
+
+void remove_dead_characters(std::vector<Character*>& characters) {
+    // Remove dead characters using std::remove_if and a lambda function
+    auto new_end = std::remove_if(characters.begin(), characters.end(), [](Character* character) {
+        if (character->is_dead()) {
+            delete character;
+            return true;
+        }
+        return false;
+        });
+
+    // Erase the dead characters from the vector
+    characters.erase(new_end, characters.end());
+}
+
+// simulate map and characters according to requirements
+void simulate(int steps, Map& map, std::vector<Character*>& characters) {
+    int current_step = 1;
+   // while (steps > 0) {
+    for (int step = 1; step <= steps; ++step) {
+        std::cout << "Step: " << current_step << std::endl;
+        /*for (Character* character : characters) {
+            if (!character->is_dead()) {
+                character->move(); //move and interact
+                move_characters(map,characters);
+                character->interact( character);
+                character->update_health(characters);
+                character->update_reproduction(characters);
+                //character->reproduce(characters);
+              }*/
+        for (Character* character : characters) {
+             character->move();
+        }
+
+        for (Character* character : characters) {
+            character->update_health(characters);
+        }
+
+        for (Character* character : characters) {
+            character->reproduce(characters);
+        }
+            
+            
+           
+        }
+        //display_character_counts(characters);
+        map.display_count();
+        // Remove characters that died
+        remove_dead_characters(characters);
+        //display_character_counts(characters);
+       // map.display_count();
+        map.display();
+        
+
+        std::cout << "-----------------" << std::endl;
+       // --steps;
+        ++current_step;
+    }
+
+
+
+
+int main() {
+    srand(time(0));
+
+    Map map(20, 20);
+    map.place_blockers(12);
+
+    int num_vegetation = 5;
+    int num_herbivore = 5;
+    int num_carnivore = 0;
+    int num_omnivore = 0;
+
+    //adding characters to the map
+    std::vector<Character*> characters;
+
+    for (int i = 0; i < num_vegetation; i++) {
+        characters.push_back(new Vegetation(map));
+    }
+    for (Character* character : characters) {
+        map.add_character(character);
+    }
+
+    for (int i = 0; i < num_herbivore; i++) {
+        characters.push_back(new Herbivore(map));
+    }
+    for (Character* character : characters) {
+        map.add_character(character);
+    }
+
+    for (int i = 0; i < num_carnivore; i++) {
+        characters.push_back(new Carnivore(map));
+    }
+    for (Character* character : characters) {
+        map.add_character(character);
+    }
+
+    for (int i = 0; i < num_omnivore; i++) {
+        characters.push_back(new Omnivore(map));
+    }
+    for (Character* character : characters) {
+        map.add_character(character);
+    }
+
+
+    simulate(1, map, characters);
+
+
+
+    // Cleanup
+    for (Character* character : characters) {
+        delete character;
+    }
+
+    return 0;
+}
+
